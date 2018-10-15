@@ -80,6 +80,7 @@ class OAuthMethod(AuthMethod):
         self.scope = kwargs.pop('scope', None)
         self.default_token_expiry = kwargs.pop('default_token_expiry', 300)
         self.name = kwargs.get('name', 'OAuth')
+        self.secret_in_body = kwargs.get('secret_in_body', True)
         try:
             self.access_params = kwargs.pop('access_token_params')
         except KeyError:
@@ -132,11 +133,14 @@ class OAuthMethod(AuthMethod):
                 redirect_uri=self.redirect_uri,
                 state=session['state'])
         try:
-            token = oauth.fetch_token(self.token_url,
-                    authorization_response=request.url,
-                    method=self.oauth_method,
-                    client_secret=self.client_secret,
-                    auth=(self.client_id, self.client_secret))
+            fetch_args = {
+                'authorization_response': request.url,
+                'method': self.oauth_method,
+                'auth': (self.client_id, self.client_secret)
+            }
+            if self.secret_in_body:
+                fetch_args['client_secret'] = self.client_secret
+            token = oauth.fetch_token(self.token_url, **fetch_args)
         except OAuth2Error as e:
             # TRANS: When there's an error associated with a login.
             flash(gettext(u"Login failed: %(error)s", error=e.error))
