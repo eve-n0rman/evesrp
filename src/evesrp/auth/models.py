@@ -403,6 +403,8 @@ class TransformerRef(db.Model, AutoID, AutoName):
             name='division_transformer'),
     )
 
+    __tablename__ = 'transformerref'
+
     #: The attribute this transformer is applied to.
     attribute_name = db.Column(db.String(50), nullable=False)
 
