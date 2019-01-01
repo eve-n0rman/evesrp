@@ -440,7 +440,7 @@ class ESIMail(Killmail, RequestsSessionMixin, LocationMixin):
             # Handle corporations not in alliances
             ids.append(self.alliance_id)
         names_resp = self.requests_session.post(
-            'https://esi.tech.ccp.is/v2/universe/names/', json=ids)
+            'https://esi.evetech.net/v2/universe/names/', json=ids)
         if names_resp.status_code != 200:
             self._raise_esi_lookup(names_resp.json()[u'error'])
         for name_info in names_resp.json():
@@ -474,27 +474,28 @@ class ZKillmail(ESIMail):
 
     @property
     def api_url(self):
-        # We use a minimized API URL to query against zKB
-        return ('https://zkillboard.com/'
-                'api/no-attackers/no-items/killID/{}/').format(self.kill_id)
-
-    def ingest_killmail(self, json_response):
-        # zKillboard has the ability to return multiple killmails in one API
-        # response, so the response is an array of killmail objects, while ESI
-        # only returns one killmail per response.
+        zkb_url = 'https://zkillboard.com/' \
+                  'api/no-attackers/no-items/killID/{}/'.format(self.kill_id)
+        # Check if it's a valid ESI URL
+        resp = self.requests_session.get(zkb_url)
+        # JSON responses are defined to be UTF-8 encoded
+        # TODO handle all the documented error codes form CCP
+        if resp.status_code != 200:
+            try:
+                error_message = resp.json()[u'error']
+            except ValueError:
+                error_message = str(resp.status_code)
+            self._raise_esi_lookup(error_message)
         try:
-            killmail_json = json_response[0]
-        except IndexError as idx_exc:
-            val_exc = ValueError(gettext(u"'%(url)s' is not a valid %(source)s"
-                                         u" killmail.",
-                                         source=self.killmail_source,
-                                         url=self.url))
-            six.raise_from(val_exc, idx_exc)
-        super(ZKillmail, self).ingest_killmail(killmail_json)
-        # Continue on and add some zKB-specific info
-        # TODO: customize JSON parser to pull out these values as decimals, not
-        # floats
-        self.value = Decimal(killmail_json[u'zkb'][u'totalValue'])
+            json = resp.json()
+        except ValueError as e:
+            # TRANS: The %(code)d in this message will be replaced with the
+            # HTTP status code recieved from CCP.
+            raise LookupError(gettext(u"Error retrieving killmail data: "
+                                      u"%(code)d", code=resp.status_code))
+        kill_hash = json[0]['zkb']['hash']
+        return 'https://esi.evetech.net/' \
+               'latest/killmails/{}/{}/'.format(self.kill_id, kill_hash)
 
 
 # Backwards compatibility
