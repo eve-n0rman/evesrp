@@ -39,23 +39,23 @@ class BraveNeuCore(OAuthMethod):
         :param str name: The name for this authentication method. Default:
             ``'BRAVE NeuCore'``.
         """
-        sso = 'https://login.eveonline.com'
-        core = 'https://account.bravecollective.com'
+        self.sso = 'https://login.eveonline.com'
+        self.core = 'https://account.bravecollective.com'
         core_id = kwargs.get('core_id')
         core_secret = kwargs.get('core_secret')
         core_bearer = 'Bearer ' + b64encode(str(core_id) + ':' + core_secret)
         self.core_session = requests.Session()
         self.core_session.headers.update({'Authorization': core_bearer})
         if devtest:
-            core = 'https://brvneucore.herokuapp.com'
-        self.base_url = core + '/api/app/v1'
-        self.verify_url = sso + '/oauth/verify/'
+            self.core = 'https://brvneucore.herokuapp.com'
+        self.base_url = self.core + '/api/app'
+        self.verify_url = self.sso + '/oauth/verify/'
         kwargs.setdefault('authorize_url',
-                sso + '/oauth/authorize')
+                self.sso + '/oauth/authorize')
         kwargs.setdefault('access_token_url',
-                sso + '/oauth/token')
+                self.sso + '/oauth/token')
         kwargs.setdefault('refresh_token_url',
-                sso + '/oauth/token')
+                self.sso + '/oauth/token')
         kwargs.setdefault('scope', '')
         kwargs.setdefault('method', 'POST')
         kwargs.setdefault('app_key', 'BRAVE_NEUCORE')
@@ -73,22 +73,23 @@ class BraveNeuCore(OAuthMethod):
             except TypeError:
                 abort(500, u"Error in receiving Verify response {}".format(
                         resp))
-            resp = self.core_session.get(self.base_url + '/main/{}'.format(cid))
             try:
+                resp = self.core_session.get(self.base_url + '/v1/main/{}'.format(cid))
                 current_app.logger.debug(u"BRAVE Core API response: {}".format(
                         resp.text))
                 request._auth_user_data = resp.json()
-            except TypeError:
-                abort(500, u"Error in receiving BRAVE API response: {}".format(
-                        resp))
-            resp = self.core_session.get(self.base_url + '/groups/{}'.format(cid))
-            try:
+                resp = self.core_session.get(self.base_url + '/v1/groups/{}'.format(cid))
                 current_app.logger.debug(u"BRAVE Core API response: {}".format(
                         resp.text))
                 request._auth_user_data[u'groups'] = resp.json()
+                resp = self.core_session.get(self.base_url + '/v1/characters/{}'.format(cid))
+                current_app.logger.debug(u'BRAVE Core API response: {}'.format(
+                        resp.text))
+                request._auth_user_data[u'characters'] = resp.json()
             except TypeError:
                 abort(500, u"Error in receiving BRAVE API response: {}".format(
                         resp))
+        current_app.logger.debug('Core User Data: {}'.format(request._auth_user_data))
         return request._auth_user_data
 
     def get_user(self):
@@ -113,15 +114,16 @@ class BraveNeuCore(OAuthMethod):
                 u'srp.admin' in [g.name for g in data[u'groups']]
 
     def get_pilots(self):
+        pilots = []
         data = self._get_user_data()
-        # The Auth API will duplicate characters when there's more than one API
-        # key for them.
-        pilots = {}
-        pilot = Pilot.query.get(int(data[u'id']))
-        if pilot is None:
-            pilot = Pilot(None, data[u'name'], data[u'id'])
-        pilots[data[u'id']] = pilot
-        pilots = list(pilots.values())
+        current_app.logger.debug(u'Adding pilots')
+        for character in data[u'characters']:
+            pilot = Pilot.query.get(int(character[u'id']))
+            if pilot is None:
+                pilot = Pilot(None, character[u'name'], character[u'id'])
+            pilots.append(pilot)
+            current_app.logger.debug(u'Added alt pilot {}'.format(pilot))
+        current_app.logger.debug(u'Added pilots: {}'.format(pilots))
         return pilots
 
     def get_groups(self):
