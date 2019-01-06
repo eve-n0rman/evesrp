@@ -13,3 +13,8 @@ less.mk
 browserify.mk
 dist
 .tox
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
