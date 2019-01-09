@@ -19,6 +19,8 @@ class BraveNeuCore(OAuthMethod):
         :param list admins: Two types of values are accepted as values in this
             list, either a string specifying a user's primary character's name,
             or their EVE Character ID as an integer.
+        :param list admin_groups: A list of core group names which are granted
+            admin privileges.
         :param bool devtest: Testing parameter that changes the default domain
             for URLs from 'https://account.bravecollective.com' to
             'https://brvneucore.herokuapp.com`. Default: ``False``.
@@ -50,6 +52,7 @@ class BraveNeuCore(OAuthMethod):
             self.core = 'https://brvneucore.herokuapp.com'
         self.base_url = self.core + '/api/app'
         self.verify_url = self.sso + '/oauth/verify/'
+        self.admin_groups = kwargs.get('admin_groups', [])
         kwargs.setdefault('authorize_url',
                 self.sso + '/oauth/authorize')
         kwargs.setdefault('access_token_url',
@@ -111,7 +114,7 @@ class BraveNeuCore(OAuthMethod):
         data = self._get_user_data()
         return super(BraveNeuCore, self).is_admin(user) or \
                 user.auth_id in self.admins or \
-                u'srp.admin' in [g.name for g in data[u'groups']]
+                bool(set(self.admin_groups) & set([g[u'name'] for g in data[u'groups']]))
 
     def get_pilots(self):
         pilots = []
