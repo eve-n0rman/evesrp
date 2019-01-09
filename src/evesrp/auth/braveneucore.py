@@ -78,20 +78,29 @@ class BraveNeuCore(OAuthMethod):
                         resp))
             try:
                 resp = self.core_session.get(self.base_url + '/v1/main/{}'.format(cid))
+                resp.raise_for_status()
                 current_app.logger.debug(u"BRAVE Core API response: {}".format(
                         resp.text))
                 request._auth_user_data = resp.json()
                 resp = self.core_session.get(self.base_url + '/v1/groups/{}'.format(cid))
+                resp.raise_for_status()
                 current_app.logger.debug(u"BRAVE Core API response: {}".format(
                         resp.text))
                 request._auth_user_data[u'groups'] = resp.json()
                 resp = self.core_session.get(self.base_url + '/v1/characters/{}'.format(cid))
+                resp.raise_for_status()
                 current_app.logger.debug(u'BRAVE Core API response: {}'.format(
                         resp.text))
                 request._auth_user_data[u'characters'] = resp.json()
-            except TypeError:
-                abort(500, u"Error in receiving BRAVE API response: {}".format(
-                        resp))
+            except requests.exceptions.HTTPError as e:
+                if resp.status_code == 404:
+                    abort(404, 'Character not found in BRAVE Core')
+                elif resp.status_code == 403:
+                    abort(403, 'Character not authorized by BRAVE Core')
+                elif resp.status_code == 204:
+                    abort(204, 'No main character set in BRAVE Core')
+                else:
+                    abort(resp.status_code, 'Error in receiving BRAVE API response: {}'.format(e))
         current_app.logger.debug('Core User Data: {}'.format(request._auth_user_data))
         return request._auth_user_data
 
