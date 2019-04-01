@@ -149,7 +149,15 @@ class OAuthMethod(AuthMethod):
             return redirect(url_for('login.login'))
         # Set the current session manually because the automated method relies
         # on current_user.
-        self.session = OAuth2Session(self.client_id, token=token)
+        oauth_kwargs = {}
+        if self.refresh_url is not None:
+            oauth_kwargs['auto_refresh_url'] = self.refresh_url
+            oauth_kwargs['token_updater'] = token_saver
+            oauth_kwargs['auto_refresh_kwargs'] = {
+                'client_id': self.client_id,
+                'client_secret': self.client_secret,
+            }
+        self.session = OAuth2Session(self.client_id, token=token, **oauth_kwargs)
         # Get the User object for this user, creating one if needed
         user = self.get_user()
         # Update the tokens (and related info) for the user
